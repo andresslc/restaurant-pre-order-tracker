@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ClipboardList, PlusCircle, Users } from "lucide-react"
+import { ClipboardList, PlusCircle, Users, Package } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 export function Navigation() {
@@ -52,6 +52,19 @@ export function Navigation() {
                 >
                   <ClipboardList className="mr-2 h-4 w-4" />
                   All Orders
+                </Button>
+              </Link>
+              <Link href="/products">
+                <Button
+                  variant={pathname === "/products" ? "default" : "ghost"}
+                  className={
+                    pathname === "/products"
+                      ? "bg-amber-600 text-white hover:bg-amber-700"
+                      : "text-neutral-300 hover:bg-neutral-800 hover:text-white"
+                  }
+                >
+                  <Package className="mr-2 h-4 w-4" />
+                  Products
                 </Button>
               </Link>
             </div>
