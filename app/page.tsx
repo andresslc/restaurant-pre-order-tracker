@@ -5,19 +5,21 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Search, UserPlus, X } from "lucide-react"
+import { Search, UserPlus, X, Loader2, AlertCircle } from "lucide-react"
 import { useOrders } from "@/lib/orders-context"
 import { OrderCard } from "@/components/order-card"
 
 export default function ManageOrders() {
-  const { orders, markArrived, markDelivered } = useOrders()
+  const { orders, markArrived, markDelivered, addPayment, isLoading, error } = useOrders()
   const [searchQuery, setSearchQuery] = useState("")
   const [deliveryFilter, setDeliveryFilter] = useState<"all" | "on-site" | "delivery">("all")
   const [showPendingDialog, setShowPendingDialog] = useState(false)
   const [pendingSearchQuery, setPendingSearchQuery] = useState("")
+  const [processingOrderId, setProcessingOrderId] = useState<string | null>(null)
 
   const filteredOrders = useMemo(() => {
-    let activeOrders = orders.filter((order) => order.status !== "pending")
+    // Filter out pending and delivered orders - only show arrived orders
+    let activeOrders = orders.filter((order) => order.status === "arrived")
 
     if (deliveryFilter !== "all") {
       activeOrders = activeOrders.filter((order) => order.deliveryType === deliveryFilter)
@@ -44,6 +46,64 @@ export default function ManageOrders() {
     return orders.filter((order) => order.status === "pending").length
   }, [orders])
 
+  const handleMarkArrived = async (orderId: string) => {
+    setProcessingOrderId(orderId)
+    try {
+      await markArrived(orderId)
+      setShowPendingDialog(false)
+      setPendingSearchQuery("")
+    } catch (error) {
+      console.error("Failed to mark order as arrived:", error)
+    } finally {
+      setProcessingOrderId(null)
+    }
+  }
+
+  const handleMarkDelivered = async (orderId: string) => {
+    setProcessingOrderId(orderId)
+    try {
+      await markDelivered(orderId)
+    } catch (error) {
+      console.error("Failed to mark order as delivered:", error)
+    } finally {
+      setProcessingOrderId(null)
+    }
+  }
+
+  const handleAddPayment = async (orderId: string, amount: number) => {
+    setProcessingOrderId(orderId)
+    try {
+      await addPayment(orderId, amount)
+    } catch (error) {
+      console.error("Failed to add payment:", error)
+    } finally {
+      setProcessingOrderId(null)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-neutral-950 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin text-amber-500 mx-auto mb-4" />
+          <p className="text-xl text-neutral-400">Loading orders...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-neutral-950 flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <p className="text-xl text-red-400 mb-2">Failed to load orders</p>
+          <p className="text-neutral-500">{error}</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-neutral-950">
       <div className="mx-auto max-w-7xl p-6">
@@ -62,7 +122,7 @@ export default function ManageOrders() {
               />
             </div>
 
-            <Select value={deliveryFilter} onValueChange={(value: any) => setDeliveryFilter(value)}>
+            <Select value={deliveryFilter} onValueChange={(value: "all" | "on-site" | "delivery") => setDeliveryFilter(value)}>
               <SelectTrigger className="h-12 w-[200px] border-neutral-700 bg-neutral-900 text-white">
                 <SelectValue placeholder="Filter by type" />
               </SelectTrigger>
@@ -116,12 +176,9 @@ export default function ManageOrders() {
                       {filteredPendingOrders.map((order) => (
                         <button
                           key={order.id}
-                          onClick={() => {
-                            markArrived(order.id)
-                            setShowPendingDialog(false)
-                            setPendingSearchQuery("")
-                          }}
-                          className="w-full rounded-lg border-2 border-neutral-800 bg-neutral-800 p-4 text-left transition-all hover:border-amber-600 hover:bg-neutral-700"
+                          onClick={() => handleMarkArrived(order.id)}
+                          disabled={processingOrderId === order.id}
+                          className="w-full rounded-lg border-2 border-neutral-800 bg-neutral-800 p-4 text-left transition-all hover:border-amber-600 hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <div className="flex items-start justify-between">
                             <div className="flex-1">
@@ -150,7 +207,11 @@ export default function ManageOrders() {
                                 </div>
                               )}
                             </div>
-                            <UserPlus className="h-6 w-6 text-amber-500" />
+                            {processingOrderId === order.id ? (
+                              <Loader2 className="h-6 w-6 animate-spin text-amber-500" />
+                            ) : (
+                              <UserPlus className="h-6 w-6 text-amber-500" />
+                            )}
                           </div>
                         </button>
                       ))}
@@ -173,7 +234,14 @@ export default function ManageOrders() {
         ) : (
           <div className="grid gap-4">
             {filteredOrders.map((order) => (
-              <OrderCard key={order.id} order={order} onMarkArrived={markArrived} onMarkDelivered={markDelivered} />
+              <OrderCard 
+                key={order.id} 
+                order={order} 
+                onMarkArrived={handleMarkArrived} 
+                onMarkDelivered={handleMarkDelivered}
+                onAddPayment={handleAddPayment}
+                isProcessing={processingOrderId === order.id}
+              />
             ))}
           </div>
         )}

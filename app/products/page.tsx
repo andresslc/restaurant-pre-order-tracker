@@ -2,11 +2,11 @@
 
 import { useOrders } from "@/lib/orders-context"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Package } from "lucide-react"
+import { Package, Loader2, AlertCircle } from "lucide-react"
 import { useMemo } from "react"
 
 export default function ProductsPage() {
-  const { orders } = useOrders()
+  const { orders, isLoading, error } = useOrders()
 
   // Aggregate all items from all orders
   const aggregatedProducts = useMemo(() => {
@@ -26,6 +26,29 @@ export default function ProductsPage() {
   }, [orders])
 
   const totalItems = aggregatedProducts.reduce((sum, product) => sum + product.quantity, 0)
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-neutral-950 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin text-amber-500 mx-auto mb-4" />
+          <p className="text-xl text-neutral-400">Loading products...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-neutral-950 flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <p className="text-xl text-red-400 mb-2">Failed to load products</p>
+          <p className="text-neutral-500">{error}</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-neutral-950 py-8">

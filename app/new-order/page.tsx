@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { PlusCircle, X, Save } from "lucide-react"
+import { PlusCircle, X, Save, Loader2, DollarSign } from "lucide-react"
 import { useOrders, type DeliveryType } from "@/lib/orders-context"
 
 interface OrderItem {
@@ -25,6 +25,10 @@ export default function NewOrder() {
   const [items, setItems] = useState<OrderItem[]>([{ name: "", quantity: 1 }])
   const [deliveryType, setDeliveryType] = useState<DeliveryType>("on-site")
   const [address, setAddress] = useState("")
+  const [totalAmount, setTotalAmount] = useState("")
+  const [amountPaid, setAmountPaid] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   const addItem = () => {
     setItems([...items, { name: "", quantity: 1 }])
@@ -42,35 +46,47 @@ export default function NewOrder() {
     setItems(newItems)
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setSubmitError(null)
 
     if (!customerName.trim()) {
-      alert("Please enter customer name")
+      setSubmitError("Please enter customer name")
       return
     }
 
     const validItems = items.filter((item) => item.name.trim() !== "")
     if (validItems.length === 0) {
-      alert("Please add at least one item")
+      setSubmitError("Please add at least one item")
       return
     }
 
     if (deliveryType === "delivery" && !address.trim()) {
-      alert("Please enter delivery address")
+      setSubmitError("Please enter delivery address")
       return
     }
 
-    addOrder({
-      customerName: customerName.trim(),
-      items: validItems,
-      status: "pending",
-      estimatedArrival: estimatedArrival || undefined,
-      deliveryType,
-      address: deliveryType === "delivery" ? address.trim() : undefined,
-    })
+    setIsSubmitting(true)
 
-    router.push("/all-orders")
+    try {
+      await addOrder({
+        customerName: customerName.trim(),
+        items: validItems,
+        status: "pending",
+        estimatedArrival: estimatedArrival || undefined,
+        deliveryType,
+        address: deliveryType === "delivery" ? address.trim() : undefined,
+        totalAmount: parseFloat(totalAmount) || 0,
+        amountPaid: parseFloat(amountPaid) || 0,
+      })
+
+      router.push("/all-orders")
+    } catch (error) {
+      console.error("Error creating order:", error)
+      setSubmitError(error instanceof Error ? error.message : "Failed to create order")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -84,6 +100,12 @@ export default function NewOrder() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
+              {submitError && (
+                <div className="rounded-lg border border-red-600 bg-red-950/30 p-4 text-red-400">
+                  {submitError}
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label htmlFor="customerName" className="text-neutral-300">
                   Customer Name *
@@ -96,6 +118,7 @@ export default function NewOrder() {
                   placeholder="Enter customer name"
                   className="border-neutral-700 bg-neutral-800 text-white placeholder:text-neutral-500"
                   required
+                  disabled={isSubmitting}
                 />
               </div>
 
@@ -110,12 +133,17 @@ export default function NewOrder() {
                   onChange={(e) => setEstimatedArrival(e.target.value)}
                   placeholder="e.g., 12:30 PM"
                   className="border-neutral-700 bg-neutral-800 text-white placeholder:text-neutral-500"
+                  disabled={isSubmitting}
                 />
               </div>
 
               <div className="space-y-3">
                 <Label className="text-neutral-300">Delivery Type *</Label>
-                <RadioGroup value={deliveryType} onValueChange={(value) => setDeliveryType(value as DeliveryType)}>
+                <RadioGroup 
+                  value={deliveryType} 
+                  onValueChange={(value) => setDeliveryType(value as DeliveryType)}
+                  disabled={isSubmitting}
+                >
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="on-site" id="on-site" />
                     <Label htmlFor="on-site" className="cursor-pointer font-normal text-neutral-300">
@@ -144,9 +172,108 @@ export default function NewOrder() {
                     placeholder="Enter delivery address"
                     className="border-neutral-700 bg-neutral-800 text-white placeholder:text-neutral-500"
                     required
+                    disabled={isSubmitting}
                   />
                 </div>
               )}
+
+              {/* Payment Section */}
+              <div className="rounded-lg border border-neutral-700 bg-neutral-800/50 p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-neutral-300">
+                    <DollarSign className="h-5 w-5 text-amber-500" />
+                    <Label className="text-lg font-medium">Payment Information</Label>
+                  </div>
+                  
+                  {/* Payment Status Toggle */}
+                  {totalAmount && parseFloat(totalAmount) > 0 && (
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => setAmountPaid(totalAmount)}
+                        disabled={isSubmitting}
+                        className={`${
+                          amountPaid === totalAmount
+                            ? "bg-green-600 hover:bg-green-700 text-white"
+                            : "bg-neutral-700 hover:bg-neutral-600 text-neutral-300"
+                        }`}
+                      >
+                        Paid in Full
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => setAmountPaid("0")}
+                        disabled={isSubmitting}
+                        className={`${
+                          amountPaid !== totalAmount
+                            ? "bg-red-600 hover:bg-red-700 text-white"
+                            : "bg-neutral-700 hover:bg-neutral-600 text-neutral-300"
+                        }`}
+                      >
+                        In Debt
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="totalAmount" className="text-neutral-300">
+                      Total Amount
+                    </Label>
+                    <div className="relative">
+                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-500" />
+                      <Input
+                        id="totalAmount"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={totalAmount}
+                        onChange={(e) => setTotalAmount(e.target.value)}
+                        placeholder="0.00"
+                        className="pl-9 border-neutral-700 bg-neutral-800 text-white placeholder:text-neutral-500"
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="amountPaid" className="text-neutral-300">
+                      Amount Paid (Downpayment)
+                    </Label>
+                    <div className="relative">
+                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-500" />
+                      <Input
+                        id="amountPaid"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={amountPaid}
+                        onChange={(e) => setAmountPaid(e.target.value)}
+                        placeholder="0.00"
+                        className="pl-9 border-neutral-700 bg-neutral-800 text-white placeholder:text-neutral-500"
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Balance Preview */}
+                {totalAmount && (
+                  <div className="flex justify-between items-center pt-2 border-t border-neutral-700">
+                    <span className="text-neutral-400">Remaining Balance:</span>
+                    <span className={`text-lg font-bold ${
+                      (parseFloat(totalAmount) || 0) - (parseFloat(amountPaid) || 0) <= 0 
+                        ? 'text-green-400' 
+                        : 'text-amber-400'
+                    }`}>
+                      ${((parseFloat(totalAmount) || 0) - (parseFloat(amountPaid) || 0)).toFixed(2)}
+                    </span>
+                  </div>
+                )}
+              </div>
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -157,6 +284,7 @@ export default function NewOrder() {
                     variant="outline"
                     size="sm"
                     className="border-amber-600 bg-amber-950/30 text-amber-500 hover:bg-amber-950/50 hover:text-amber-400"
+                    disabled={isSubmitting}
                   >
                     <PlusCircle className="mr-2 h-4 w-4" />
                     Add Item
@@ -173,6 +301,7 @@ export default function NewOrder() {
                           onChange={(e) => updateItem(index, "name", e.target.value)}
                           placeholder="Item name"
                           className="border-neutral-700 bg-neutral-800 text-white placeholder:text-neutral-500"
+                          disabled={isSubmitting}
                         />
                       </div>
                       <div className="w-24">
@@ -183,6 +312,7 @@ export default function NewOrder() {
                           onChange={(e) => updateItem(index, "quantity", Number.parseInt(e.target.value) || 1)}
                           placeholder="Qty"
                           className="border-neutral-700 bg-neutral-800 text-white placeholder:text-neutral-500"
+                          disabled={isSubmitting}
                         />
                       </div>
                       {items.length > 1 && (
@@ -192,6 +322,7 @@ export default function NewOrder() {
                           variant="ghost"
                           size="icon"
                           className="text-red-500 hover:bg-red-950/30 hover:text-red-400"
+                          disabled={isSubmitting}
                         >
                           <X className="h-4 w-4" />
                         </Button>
@@ -205,15 +336,26 @@ export default function NewOrder() {
                 <Button
                   type="submit"
                   className="flex-1 bg-emerald-600 text-lg font-semibold text-white hover:bg-emerald-700"
+                  disabled={isSubmitting}
                 >
-                  <Save className="mr-2 h-5 w-5" />
-                  Save Order
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="mr-2 h-5 w-5" />
+                      Save Order
+                    </>
+                  )}
                 </Button>
                 <Button
                   type="button"
                   onClick={() => router.push("/all-orders")}
                   variant="outline"
                   className="border-neutral-700 text-neutral-300 hover:bg-neutral-800 hover:text-white"
+                  disabled={isSubmitting}
                 >
                   Cancel
                 </Button>
