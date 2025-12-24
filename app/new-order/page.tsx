@@ -128,10 +128,9 @@ export default function NewOrder() {
                 </Label>
                 <Input
                   id="estimatedArrival"
-                  type="text"
+                  type="time"
                   value={estimatedArrival}
                   onChange={(e) => setEstimatedArrival(e.target.value)}
-                  placeholder="e.g., 12:30 PM"
                   className="border-neutral-700 bg-neutral-800 text-white placeholder:text-neutral-500"
                   disabled={isSubmitting}
                 />
@@ -269,7 +268,7 @@ export default function NewOrder() {
                         ? 'text-green-400' 
                         : 'text-amber-400'
                     }`}>
-                      ${((parseFloat(totalAmount) || 0) - (parseFloat(amountPaid) || 0)).toFixed(2)}
+                      ${((parseFloat(totalAmount) || 0) - (parseFloat(amountPaid) || 0)).toLocaleString('es-CO')}
                     </span>
                   </div>
                 )}

@@ -14,7 +14,8 @@ export async function GET() {
         items:order_items (
           id,
           name,
-          quantity
+          quantity,
+          is_delivered
         )
       `)
       .order('created_at', { ascending: false })
@@ -32,7 +33,12 @@ export async function GET() {
       id: order.order_number,
       dbId: order.id,
       customerName: order.customer_name,
-      items: order.items || [],
+      items: order.items?.map((item: { id: string; name: string; quantity: number; is_delivered?: boolean }) => ({
+        id: item.id,
+        name: item.name,
+        quantity: item.quantity,
+        isDelivered: item.is_delivered ?? false,
+      })) || [],
       status: order.status,
       estimatedArrival: order.estimated_arrival,
       arrivedAt: order.arrived_at ? new Date(order.arrived_at).getTime() : undefined,

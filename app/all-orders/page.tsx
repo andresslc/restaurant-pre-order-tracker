@@ -10,11 +10,14 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Search, Edit, Trash2, X, Save, PlusCircle, User, MapPin, Loader2, AlertCircle, Filter, DollarSign } from "lucide-react"
 import { useOrders, type Order, type DeliveryType } from "@/lib/orders-context"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+
+type FilterOption = "all" | "active" | "delivered" | "paid" | "unpaid" | "delivery" | "on-site"
 
 export default function AllOrders() {
   const { orders, updateOrder, deleteOrder, addPayment, isLoading, error } = useOrders()
   const [searchQuery, setSearchQuery] = useState("")
-  const [statusFilter, setStatusFilter] = useState<"all" | "delivered" | "active">("all")
+  const [filterOption, setFilterOption] = useState<FilterOption>("all")
   const [editingOrder, setEditingOrder] = useState<Order | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState<string | null>(null)
@@ -31,11 +34,29 @@ export default function AllOrders() {
   const filteredOrders = useMemo(() => {
     let filtered = orders
 
-    // Apply status filter
-    if (statusFilter === "delivered") {
-      filtered = filtered.filter((order) => order.status === "delivered")
-    } else if (statusFilter === "active") {
-      filtered = filtered.filter((order) => order.status !== "delivered")
+    // Apply filter
+    switch (filterOption) {
+      case "active":
+        filtered = filtered.filter((order) => order.status !== "delivered")
+        break
+      case "delivered":
+        filtered = filtered.filter((order) => order.status === "delivered")
+        break
+      case "paid":
+        filtered = filtered.filter((order) => order.totalAmount > 0 && order.amountPaid >= order.totalAmount)
+        break
+      case "unpaid":
+        filtered = filtered.filter((order) => order.totalAmount > 0 && order.amountPaid < order.totalAmount)
+        break
+      case "delivery":
+        filtered = filtered.filter((order) => order.deliveryType === "delivery")
+        break
+      case "on-site":
+        filtered = filtered.filter((order) => order.deliveryType === "on-site")
+        break
+      default:
+        // "all" - no filter
+        break
     }
 
     // Apply search filter
@@ -46,7 +67,7 @@ export default function AllOrders() {
     }
 
     return filtered
-  }, [orders, searchQuery, statusFilter])
+  }, [orders, searchQuery, filterOption])
 
   const handleEditClick = (order: Order) => {
     setEditingOrder(order)
@@ -167,7 +188,7 @@ export default function AllOrders() {
           className="border-green-500 bg-green-950/30 text-green-400"
         >
           <DollarSign className="mr-1 h-3 w-3" />
-          Paid ${order.amountPaid.toFixed(2)}
+          Paid ${order.amountPaid.toLocaleString('es-CO')}
         </Badge>
       )
     } else if (hasPartialPayment) {
@@ -177,7 +198,7 @@ export default function AllOrders() {
           className="border-yellow-500 bg-yellow-950/30 text-yellow-400"
         >
           <DollarSign className="mr-1 h-3 w-3" />
-          Owes ${remainingBalance.toFixed(2)}
+          Owes ${remainingBalance.toLocaleString('es-CO')}
         </Badge>
       )
     } else {
@@ -187,7 +208,7 @@ export default function AllOrders() {
           className="border-red-500 bg-red-950/30 text-red-400"
         >
           <DollarSign className="mr-1 h-3 w-3" />
-          Unpaid ${order.totalAmount.toFixed(2)}
+          Unpaid ${order.totalAmount.toLocaleString('es-CO')}
         </Badge>
       )
     }
@@ -234,47 +255,35 @@ export default function AllOrders() {
               />
             </div>
 
-            <div className="flex gap-2">
-              <Button
-                variant={statusFilter === "all" ? "default" : "outline"}
-                size="lg"
-                onClick={() => setStatusFilter("all")}
-                className={
-                  statusFilter === "all"
-                    ? "h-12 bg-blue-600 text-white hover:bg-blue-700"
-                    : "h-12 border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800 hover:text-white"
-                }
-              >
-                <Filter className="mr-2 h-5 w-5" />
-                All
-              </Button>
-              <Button
-                variant={statusFilter === "active" ? "default" : "outline"}
-                size="lg"
-                onClick={() => setStatusFilter("active")}
-                className={
-                  statusFilter === "active"
-                    ? "h-12 bg-amber-600 text-white hover:bg-amber-700"
-                    : "h-12 border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800 hover:text-white"
-                }
-              >
-                <Filter className="mr-2 h-5 w-5" />
-                Active
-              </Button>
-              <Button
-                variant={statusFilter === "delivered" ? "default" : "outline"}
-                size="lg"
-                onClick={() => setStatusFilter("delivered")}
-                className={
-                  statusFilter === "delivered"
-                    ? "h-12 bg-emerald-600 text-white hover:bg-emerald-700"
-                    : "h-12 border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800 hover:text-white"
-                }
-              >
-                <Filter className="mr-2 h-5 w-5" />
-                Delivered
-              </Button>
-            </div>
+            <Select value={filterOption} onValueChange={(value) => setFilterOption(value as FilterOption)}>
+              <SelectTrigger className="h-12 w-[200px] border-neutral-700 bg-neutral-900 text-white">
+                <Filter className="mr-2 h-5 w-5 text-amber-500" />
+                <SelectValue placeholder="Filter orders" />
+              </SelectTrigger>
+              <SelectContent className="border-neutral-700 bg-neutral-900 text-white">
+                <SelectItem value="all" className="focus:bg-neutral-800 focus:text-white">
+                  All Orders
+                </SelectItem>
+                <SelectItem value="active" className="focus:bg-neutral-800 focus:text-white">
+                  Active
+                </SelectItem>
+                <SelectItem value="delivered" className="focus:bg-neutral-800 focus:text-white">
+                  Delivered
+                </SelectItem>
+                <SelectItem value="paid" className="focus:bg-neutral-800 focus:text-white">
+                  Paid
+                </SelectItem>
+                <SelectItem value="unpaid" className="focus:bg-neutral-800 focus:text-white">
+                  Unpaid
+                </SelectItem>
+                <SelectItem value="delivery" className="focus:bg-neutral-800 focus:text-white">
+                  Delivery
+                </SelectItem>
+                <SelectItem value="on-site" className="focus:bg-neutral-800 focus:text-white">
+                  On-Site Pickup
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
@@ -389,9 +398,9 @@ export default function AllOrders() {
               </Label>
               <Input
                 id="edit-arrival"
+                type="time"
                 value={editForm.estimatedArrival}
                 onChange={(e) => setEditForm({ ...editForm, estimatedArrival: e.target.value })}
-                placeholder="e.g., 12:30 PM"
                 className="border-neutral-700 bg-neutral-800 text-white"
                 disabled={isSaving}
               />
@@ -527,7 +536,7 @@ export default function AllOrders() {
                       ? 'text-green-400' 
                       : 'text-amber-400'
                   }`}>
-                    ${((parseFloat(editForm.totalAmount) || 0) - (parseFloat(editForm.amountPaid) || 0)).toFixed(2)}
+                    ${((parseFloat(editForm.totalAmount) || 0) - (parseFloat(editForm.amountPaid) || 0)).toLocaleString('es-CO')}
                   </span>
                 </div>
               )}

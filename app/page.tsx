@@ -6,16 +6,19 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Search, UserPlus, X, Loader2, AlertCircle } from "lucide-react"
-import { useOrders } from "@/lib/orders-context"
+import { useOrders, type Order } from "@/lib/orders-context"
 import { OrderCard } from "@/components/order-card"
+import { OrderDetailDialog } from "@/components/order-detail-dialog"
 
 export default function ManageOrders() {
-  const { orders, markArrived, markDelivered, addPayment, isLoading, error } = useOrders()
+  const { orders, markArrived, markDelivered, addPayment, updateItemDelivery, isLoading, error } = useOrders()
   const [searchQuery, setSearchQuery] = useState("")
   const [deliveryFilter, setDeliveryFilter] = useState<"all" | "on-site" | "delivery">("all")
   const [showPendingDialog, setShowPendingDialog] = useState(false)
   const [pendingSearchQuery, setPendingSearchQuery] = useState("")
   const [processingOrderId, setProcessingOrderId] = useState<string | null>(null)
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
+  const [showOrderDetail, setShowOrderDetail] = useState(false)
 
   const filteredOrders = useMemo(() => {
     // Filter out pending and delivered orders - only show arrived orders
@@ -71,15 +74,35 @@ export default function ManageOrders() {
   }
 
   const handleAddPayment = async (orderId: string, amount: number) => {
-    setProcessingOrderId(orderId)
     try {
       await addPayment(orderId, amount)
+      // Update selected order if it's the one being modified
+      if (selectedOrder?.id === orderId) {
+        const updatedOrder = orders.find(o => o.id === orderId)
+        if (updatedOrder) setSelectedOrder(updatedOrder)
+      }
     } catch (error) {
       console.error("Failed to add payment:", error)
-    } finally {
-      setProcessingOrderId(null)
     }
   }
+
+  const handleUpdateItemDelivery = async (orderId: string, itemId: string, isDelivered: boolean) => {
+    try {
+      await updateItemDelivery(orderId, itemId, isDelivered)
+    } catch (error) {
+      console.error("Failed to update item:", error)
+    }
+  }
+
+  const handleCardClick = (order: Order) => {
+    setSelectedOrder(order)
+    setShowOrderDetail(true)
+  }
+
+  // Keep selected order in sync with orders state
+  const currentSelectedOrder = selectedOrder 
+    ? orders.find(o => o.id === selectedOrder.id) || selectedOrder
+    : null
 
   if (isLoading) {
     return (
@@ -239,13 +262,23 @@ export default function ManageOrders() {
                 order={order} 
                 onMarkArrived={handleMarkArrived} 
                 onMarkDelivered={handleMarkDelivered}
-                onAddPayment={handleAddPayment}
+                onCardClick={handleCardClick}
                 isProcessing={processingOrderId === order.id}
               />
             ))}
           </div>
         )}
       </div>
+
+      {/* Order Detail Dialog */}
+      <OrderDetailDialog
+        order={currentSelectedOrder}
+        open={showOrderDetail}
+        onOpenChange={setShowOrderDetail}
+        onAddPayment={handleAddPayment}
+        onUpdateItemDelivery={handleUpdateItemDelivery}
+        onMarkDelivered={handleMarkDelivered}
+      />
     </div>
   )
 }

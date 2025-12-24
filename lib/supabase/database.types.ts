@@ -9,6 +9,7 @@ export interface OrderItem {
   order_id: string
   name: string
   quantity: number
+  is_delivered: boolean
   created_at: string
 }
 

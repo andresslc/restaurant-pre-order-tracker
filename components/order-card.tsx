@@ -15,11 +15,12 @@ interface OrderCardProps {
   onMarkArrived?: (id: string) => void
   onMarkDelivered?: (id: string) => void
   onAddPayment?: (id: string, amount: number) => Promise<void>
+  onCardClick?: (order: Order) => void
   showActions?: boolean
   isProcessing?: boolean
 }
 
-export function OrderCard({ order, onMarkArrived, onMarkDelivered, onAddPayment, showActions = true, isProcessing = false }: OrderCardProps) {
+export function OrderCard({ order, onMarkArrived, onMarkDelivered, onAddPayment, onCardClick, showActions = true, isProcessing = false }: OrderCardProps) {
   const [currentTime, setCurrentTime] = useState(Date.now())
   const [showPaymentDialog, setShowPaymentDialog] = useState(false)
   const [paymentAmount, setPaymentAmount] = useState("")
@@ -77,7 +78,7 @@ export function OrderCard({ order, onMarkArrived, onMarkDelivered, onAddPayment,
           className="border-green-500 bg-green-950/30 text-green-400 cursor-pointer hover:bg-green-950/50"
         >
           <DollarSign className="mr-1 h-3 w-3" />
-          Paid ${order.amountPaid.toFixed(2)}
+          Paid ${order.amountPaid.toLocaleString('es-CO')}
         </Badge>
       )
     } else if (hasPartialPayment) {
@@ -87,7 +88,7 @@ export function OrderCard({ order, onMarkArrived, onMarkDelivered, onAddPayment,
           className="border-yellow-500 bg-yellow-950/30 text-yellow-400 cursor-pointer hover:bg-yellow-950/50"
         >
           <Wallet className="mr-1 h-3 w-3" />
-          Owes ${remainingBalance.toFixed(2)}
+          Owes ${remainingBalance.toLocaleString('es-CO')}
         </Badge>
       )
     } else {
@@ -97,7 +98,7 @@ export function OrderCard({ order, onMarkArrived, onMarkDelivered, onAddPayment,
           className="border-red-500 bg-red-950/30 text-red-400 cursor-pointer hover:bg-red-950/50"
         >
           <DollarSign className="mr-1 h-3 w-3" />
-          Unpaid ${order.totalAmount.toFixed(2)}
+          Unpaid ${order.totalAmount.toLocaleString('es-CO')}
         </Badge>
       )
     }
@@ -141,9 +142,23 @@ export function OrderCard({ order, onMarkArrived, onMarkDelivered, onAddPayment,
 
   const itemsText = order.items.map((item) => `${item.quantity}x ${item.name}`).join(", ")
 
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Don't trigger if clicking on buttons or interactive elements
+    const target = e.target as HTMLElement
+    if (target.closest('button') || target.closest('[role="button"]')) {
+      return
+    }
+    if (onCardClick) {
+      onCardClick(order)
+    }
+  }
+
   return (
     <>
-      <Card className={`${cardClassName} border-2 transition-colors`}>
+      <Card 
+        className={`${cardClassName} border-2 transition-colors ${onCardClick ? 'cursor-pointer hover:border-amber-400' : ''}`}
+        onClick={handleCardClick}
+      >
         <CardContent className="p-6">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-6">
@@ -271,17 +286,17 @@ export function OrderCard({ order, onMarkArrived, onMarkDelivered, onAddPayment,
             <div className="rounded-lg border border-neutral-800 bg-neutral-950 p-4 space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-neutral-400">Total Amount</span>
-                <span className="text-xl font-bold text-white">${order.totalAmount.toFixed(2)}</span>
+                <span className="text-xl font-bold text-white">${order.totalAmount.toLocaleString('es-CO')}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-neutral-400">Amount Paid</span>
-                <span className="text-xl font-bold text-green-400">${order.amountPaid.toFixed(2)}</span>
+                <span className="text-xl font-bold text-green-400">${order.amountPaid.toLocaleString('es-CO')}</span>
               </div>
               <div className="border-t border-neutral-800 pt-3">
                 <div className="flex justify-between items-center">
                   <span className="text-neutral-300 font-medium">Remaining Balance</span>
                   <span className={`text-2xl font-bold ${remainingBalance <= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    ${remainingBalance.toFixed(2)}
+                    ${remainingBalance.toLocaleString('es-CO')}
                   </span>
                 </div>
               </div>
@@ -343,7 +358,7 @@ export function OrderCard({ order, onMarkArrived, onMarkDelivered, onAddPayment,
                       ) : (
                         <Wallet className="mr-2 h-4 w-4" />
                       )}
-                      Pay Full (${remainingBalance.toFixed(2)})
+                      Pay Full (${remainingBalance.toLocaleString('es-CO')})
                     </Button>
                   </div>
                 </div>

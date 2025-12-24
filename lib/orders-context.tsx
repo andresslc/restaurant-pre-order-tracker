@@ -5,11 +5,18 @@ import { createContext, useContext, useState, useEffect, useCallback, type React
 export type OrderStatus = "pending" | "arrived" | "delivered"
 export type DeliveryType = "on-site" | "delivery"
 
+export interface OrderItem {
+  id?: string
+  name: string
+  quantity: number
+  isDelivered?: boolean
+}
+
 export interface Order {
   id: string
   dbId?: string // Database UUID
   customerName: string
-  items: { name: string; quantity: number }[]
+  items: OrderItem[]
   status: OrderStatus
   estimatedArrival?: string
   arrivedAt?: number
@@ -28,6 +35,7 @@ interface OrdersContextType {
   markArrived: (orderId: string) => Promise<void>
   markDelivered: (orderId: string) => Promise<void>
   addPayment: (orderId: string, amount: number) => Promise<void>
+  updateItemDelivery: (orderId: string, itemId: string, isDelivered: boolean) => Promise<void>
   updateOrder: (orderId: string, updates: Partial<Order>) => Promise<void>
   deleteOrder: (orderId: string) => Promise<void>
   refreshOrders: () => Promise<void>
@@ -173,6 +181,36 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  // Update item delivery status
+  const updateItemDelivery = async (orderId: string, itemId: string, isDelivered: boolean) => {
+    try {
+      setError(null)
+      const response = await fetch(`/api/orders/${encodeURIComponent(orderId)}/items/${encodeURIComponent(itemId)}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ isDelivered }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to update item')
+      }
+
+      const updatedOrder = await response.json()
+      setOrders((prevOrders) =>
+        prevOrders.map((order) =>
+          order.id === orderId ? updatedOrder : order
+        )
+      )
+    } catch (err) {
+      console.error('Error updating item delivery:', err)
+      setError(err instanceof Error ? err.message : 'Failed to update item')
+      throw err
+    }
+  }
+
   // Update an order
   const updateOrder = async (orderId: string, updates: Partial<Order>) => {
     try {
@@ -234,6 +272,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
         markArrived,
         markDelivered,
         addPayment,
+        updateItemDelivery,
         updateOrder,
         deleteOrder,
         refreshOrders,
