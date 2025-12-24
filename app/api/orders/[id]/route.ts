@@ -1,5 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import type { Database } from '@/lib/supabase/database.types'
+
+type OrderItem = {
+  id: string
+  name: string
+  quantity: number
+  is_delivered?: boolean
+}
+
+type OrderRow = {
+  id: string
+  order_number: string
+  customer_name: string
+  status: string
+  estimated_arrival: string | null
+  arrived_at: string | null
+  wait_time: number | null
+  delivery_type: string
+  address: string | null
+  total_amount: number
+  amount_paid: number
+  items?: OrderItem[]
+}
+
+type OrderUpdate = Database['public']['Tables']['orders']['Update']
 
 // GET /api/orders/[id] - Fetch a single order
 export async function GET(
@@ -20,7 +45,8 @@ export async function GET(
         items:order_items (
           id,
           name,
-          quantity
+          quantity,
+          is_delivered
         )
       `)
     
@@ -39,19 +65,21 @@ export async function GET(
       )
     }
 
+    const orderData = order as OrderRow
+
     const transformedOrder = {
-      id: order.order_number,
-      dbId: order.id,
-      customerName: order.customer_name,
-      items: order.items || [],
-      status: order.status,
-      estimatedArrival: order.estimated_arrival,
-      arrivedAt: order.arrived_at ? new Date(order.arrived_at).getTime() : undefined,
-      waitTime: order.wait_time,
-      deliveryType: order.delivery_type,
-      address: order.address,
-      totalAmount: Number(order.total_amount) || 0,
-      amountPaid: Number(order.amount_paid) || 0,
+      id: orderData.order_number,
+      dbId: orderData.id,
+      customerName: orderData.customer_name,
+      items: orderData.items || [],
+      status: orderData.status,
+      estimatedArrival: orderData.estimated_arrival,
+      arrivedAt: orderData.arrived_at ? new Date(orderData.arrived_at).getTime() : undefined,
+      waitTime: orderData.wait_time,
+      deliveryType: orderData.delivery_type,
+      address: orderData.address,
+      totalAmount: Number(orderData.total_amount) || 0,
+      amountPaid: Number(orderData.amount_paid) || 0,
     }
 
     return NextResponse.json(transformedOrder)
@@ -96,13 +124,15 @@ export async function PATCH(
       )
     }
 
-    // Build update object
-    const updateData: Record<string, unknown> = {}
+    const existingOrderData = existingOrder as { id: string; order_number: string }
+
+    // Build update object using the proper Database types
+    const updateData: OrderUpdate = {}
     
     if (body.customerName !== undefined) updateData.customer_name = body.customerName
     if (body.estimatedArrival !== undefined) updateData.estimated_arrival = body.estimatedArrival
-    if (body.status !== undefined) updateData.status = body.status
-    if (body.deliveryType !== undefined) updateData.delivery_type = body.deliveryType
+    if (body.status !== undefined) updateData.status = body.status as any
+    if (body.deliveryType !== undefined) updateData.delivery_type = body.deliveryType as any
     if (body.address !== undefined) updateData.address = body.address
     if (body.arrivedAt !== undefined) updateData.arrived_at = new Date(body.arrivedAt).toISOString()
     if (body.waitTime !== undefined) updateData.wait_time = body.waitTime
@@ -113,7 +143,7 @@ export async function PATCH(
     const { error: updateError } = await supabase
       .from('orders')
       .update(updateData)
-      .eq('id', existingOrder.id)
+      .eq('id', existingOrderData.id)
 
     if (updateError) {
       console.error('Error updating order:', updateError)
@@ -121,6 +151,44 @@ export async function PATCH(
         { error: 'Failed to update order' },
         { status: 500 }
       )
+    }
+
+    // Update items if provided
+    if (body.items !== undefined && Array.isArray(body.items)) {
+      // Delete all existing items for this order
+      const { error: deleteItemsError } = await supabase
+        .from('order_items')
+        .delete()
+        .eq('order_id', existingOrderData.id)
+
+      if (deleteItemsError) {
+        console.error('Error deleting order items:', deleteItemsError)
+        return NextResponse.json(
+          { error: 'Failed to update order items' },
+          { status: 500 }
+        )
+      }
+
+      // Insert new items
+      if (body.items.length > 0) {
+        const itemsToInsert = body.items.map((item: { name: string; quantity: number }) => ({
+          order_id: existingOrderData.id,
+          name: item.name,
+          quantity: item.quantity,
+        }))
+
+        const { error: insertItemsError } = await supabase
+          .from('order_items')
+          .insert(itemsToInsert)
+
+        if (insertItemsError) {
+          console.error('Error inserting order items:', insertItemsError)
+          return NextResponse.json(
+            { error: 'Failed to update order items' },
+            { status: 500 }
+          )
+        }
+      }
     }
 
     // Fetch updated order with items
@@ -131,25 +199,28 @@ export async function PATCH(
         items:order_items (
           id,
           name,
-          quantity
+          quantity,
+          is_delivered
         )
       `)
-      .eq('id', existingOrder.id)
+      .eq('id', existingOrderData.id)
       .single()
 
+    const updatedOrderData = updatedOrder as OrderRow | null
+
     const transformedOrder = {
-      id: updatedOrder?.order_number,
-      dbId: updatedOrder?.id,
-      customerName: updatedOrder?.customer_name,
-      items: updatedOrder?.items || [],
-      status: updatedOrder?.status,
-      estimatedArrival: updatedOrder?.estimated_arrival,
-      arrivedAt: updatedOrder?.arrived_at ? new Date(updatedOrder.arrived_at).getTime() : undefined,
-      waitTime: updatedOrder?.wait_time,
-      deliveryType: updatedOrder?.delivery_type,
-      address: updatedOrder?.address,
-      totalAmount: Number(updatedOrder?.total_amount) || 0,
-      amountPaid: Number(updatedOrder?.amount_paid) || 0,
+      id: updatedOrderData?.order_number,
+      dbId: updatedOrderData?.id,
+      customerName: updatedOrderData?.customer_name,
+      items: updatedOrderData?.items || [],
+      status: updatedOrderData?.status,
+      estimatedArrival: updatedOrderData?.estimated_arrival,
+      arrivedAt: updatedOrderData?.arrived_at ? new Date(updatedOrderData.arrived_at).getTime() : undefined,
+      waitTime: updatedOrderData?.wait_time,
+      deliveryType: updatedOrderData?.delivery_type,
+      address: updatedOrderData?.address,
+      totalAmount: Number(updatedOrderData?.total_amount) || 0,
+      amountPaid: Number(updatedOrderData?.amount_paid) || 0,
     }
 
     return NextResponse.json(transformedOrder)
@@ -193,11 +264,13 @@ export async function DELETE(
       )
     }
 
+    const existingOrderData = existingOrder as { id: string }
+
     // Delete will cascade to order_items due to ON DELETE CASCADE
     const { error: deleteError } = await supabase
       .from('orders')
       .delete()
-      .eq('id', existingOrder.id)
+      .eq('id', existingOrderData.id)
 
     if (deleteError) {
       console.error('Error deleting order:', deleteError)
